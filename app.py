@@ -3,21 +3,26 @@ import google.generativeai as genai
 from datetime import datetime
 
 # ==========================================
-# 👇 1. 여기 따옴표 안에 본인의 API 키를 붙여넣으세요!
-# 스트림릿 클라우드 설정(Secrets)에서 키를 가져오게 변경
+# 👇 [보안 수정 완료] API 키를 안전하게 가져옵니다.
+# ==========================================
 try:
+    # Streamlit Cloud 배포 시에는 Secrets에서 가져옴
     MY_API_KEY = st.secrets["GEMINI_API_KEY"]
-except:
-    # 내 컴퓨터에서 돌릴 때를 위해 임시로 넣어둠 (배포 시엔 무시됨)
-    MY_API_KEY = "AIzaSyAPVd7IaNzMaG_m2wdKkXGe-ZgAT1Dvrlc" 
+except FileNotFoundError:
+    # ⚠️ 중요: 깃허브에 올릴 때는 여기를 비워둬야 안전합니다!
+    # 로컬(내 컴퓨터)에서 테스트할 때만 잠시 넣고, 올릴 땐 지우세요.
+    MY_API_KEY = "" 
 
-
-
-# 👇 2. 모델 이름을 수정했습니다. (일단 이걸로 하면 무조건 됩니다!)
+# 모델 설정 (가장 안정적인 모델)
 TARGET_MODEL = "gemini-flash-latest"
 # ==========================================
 
 # --- API 설정 ---
+if not MY_API_KEY:
+    # 키가 없을 때 에러 메시지를 예쁘게 보여줌
+    st.error("API 키가 설정되지 않았습니다. Streamlit Secrets에 키를 추가해주세요!")
+    st.stop() # 더 이상 실행하지 않고 멈춤
+
 genai.configure(api_key=MY_API_KEY)
 model = genai.GenerativeModel(TARGET_MODEL)
 
@@ -31,10 +36,20 @@ st.write("친구의 생년월일만 입력하면, AI가 운명을 분석해 줍�
 col1, col2 = st.columns(2)
 with col1:
     name = st.text_input("이름 (또는 별명)", "친구")
-    gender = st.selectbox("성별", ["남성", "여성"])
+    gender = st.selectbox("성별", ["여성", "남성"])
 with col2:
-    birth_date = st.date_input("생년월일", min_value=datetime(1900, 1, 1))
-    birth_time = st.time_input("태어난 시간")
+    # 👇 [수정 1] 기본값을 1990년 1월 1일로 변경
+    birth_date = st.date_input(
+        "생년월일", 
+        value=datetime(1990, 1, 1), 
+        min_value=datetime(1900, 1, 1)
+    )
+    # 👇 [수정 2] 시간을 30분 단위(1800초)로 선택하게 변경
+    birth_time = st.time_input(
+        "태어난 시간", 
+        value=datetime.strptime("12:00", "%H:%M"),
+        step=1800 
+    )
 
 concern = st.text_area("요즘 가장 큰 고민은? (구체적일수록 정확함)", height=100)
 
@@ -66,5 +81,4 @@ if st.button("✨ 사주 결과 보기"):
             st.markdown(response.text)
 
     except Exception as e:
-        # 에러가 나면 화면에 빨간색으로 보여줍니다.
         st.error(f"오류가 발생했습니다: {e}")
