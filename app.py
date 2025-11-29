@@ -20,28 +20,6 @@ model = genai.GenerativeModel(TARGET_MODEL)
 # --- 페이지 설정 ---
 st.set_page_config(page_title="정통 AI 사주", page_icon="🌓")
 
-# 👇 [디자인 업그레이드] 버튼을 고급스럽게 꾸미는 CSS 스타일
-st.markdown("""
-<style>
-    div.stButton > button:first-child {
-        background: linear-gradient(135deg, #6a11cb 0%, #2575fc 100%);
-        color: white;
-        font-size: 18px;
-        font-weight: bold;
-        border: none;
-        border-radius: 12px;
-        padding: 16px 20px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        transition: all 0.3s ease;
-    }
-    div.stButton > button:first-child:hover {
-        background: linear-gradient(135deg, #2575fc 0%, #6a11cb 100%);
-        box-shadow: 0 8px 15px rgba(0,0,0,0.2);
-        transform: translateY(-2px);
-    }
-</style>
-""", unsafe_allow_html=True)
-
 st.title("🌓 AI 사주 상담소")
 st.markdown("---")
 st.write("마음이 복잡하거나 다가올 미래가 막막하게 느껴지시나요? 잠시 마음의 짐을 내려놓고 저에게 털어놓아 보세요 ☺️\n\n생년월일 정보만 입력하여도 사주 확인이 가능합니다.")
@@ -81,7 +59,8 @@ with st.form("saju_form"):
         unknown_time = st.checkbox("태어난 시간을 모릅니다", key="unknown_time_check")
 
     concern = st.text_area("현재 고민을 최대한 구체적으로 적어주세요.\n(예시: 내년에 일이 어떻게 풀릴 지 궁금해요. 재물운은 어떨까요.)", height=80)
-    submitted = st.form_submit_button("🌌 천기누설! 내 운명 확인하기", use_container_width=True)
+    # 👇 [수정] 버튼 문구 원복
+    submitted = st.form_submit_button("🔮 내 운명 확인하기", use_container_width=True)
 
 # --- 로직 처리 ---
 if submitted:
@@ -101,8 +80,7 @@ if submitted:
         # 양력 날짜 문자열
         solar_date_str = datetime(calendar.solarYear, calendar.solarMonth, calendar.solarDay).strftime('%Y년 %m월 %d일')
         
-        # 👇 [핵심 수정] 라이브러리가 직접 계산한 정확한 사주(간지) 가져오기
-        # 예: "갑자년 을축월 병인일" 형태로 반환됨 (AI가 계산할 필요 없음!)
+        # 라이브러리가 직접 계산한 정확한 사주(간지) 가져오기
         saju_ganji = calendar.getGapJaString() 
 
         # 사용자에게 안내
@@ -114,7 +92,7 @@ if submitted:
         else:
             time_str = birth_time.strftime('%H시 %M분')
 
-        # 3. 프롬프트 생성 (AI에게 정답 사주를 알려줌)
+        # 3. 프롬프트 생성 (요청사항 반영)
         prompt = f"""
         당신은 30년 경력의 정통 명리학자입니다.
         제가 이미 정확한 만세력 정보를 계산해서 제공하니, **당신은 별도의 날짜 계산을 하지 말고 아래 제공된 [확정된 사주] 정보를 그대로 해석**만 하세요.
@@ -122,15 +100,23 @@ if submitted:
         [사용자 정보]
         - 이름/호칭: {display_name} ({gender})
         - 사주 기준일(양력): {solar_date_str}
-        - **[확정된 사주(년월일)]: {saju_ganji}** (이 정보가 절대적인 기준입니다. 다른 계산 하지 마세요.)
+        - **[확정된 사주(년월일)]: {saju_ganji}** (이 정보가 절대적인 기준입니다.)
         - 태어난 시간: {time_str}
         - 고민: {concern if concern else "없음"}
 
         [지시사항]
-        1. **일주(Day Pillar) 분석:** 위 [확정된 사주]에서 '일주(태어난 날의 기둥)'를 찾아, 그 일주가 가진 타고난 기질과 특성을 깊이 있게 분석하세요. (예: 갑자일주라면 갑자일주의 특성 설명)
-        2. **오행 분석:** 사주팔자 전체의 오행(목화토금수) 구성을 살펴보고 과하거나 부족한 기운에 대해 조언하세요.
-        3. **2026년 운세:** 2025년의 흐름을 참고하여 2026년(병오년)의 재물, 직업, 연애 운을 구체적으로 예측하세요.
-        4. **맞춤 조언:** 사용자의 고민에 대해 따뜻하고 현실적인 조언을 해주세요.
+        1. **일주(Day Pillar) 분석:** 위 [확정된 사주]에서 '일주(태어난 날의 기둥)'를 찾아, 그 일주가 가진 타고난 기질과 특성을 설명하세요.
+        
+        2. **오행 분석 (핵심만 간략히):** 사주 전체의 오행 구성을 보고 가장 특징적인 부분만 짧게 언급하세요. (너무 길게 설명하지 마세요)
+        
+        3. **나에게 필요한 사람 (New):** - 본인의 사주에 부족한 기운을 채워주거나 도움이 되는 '귀인(Noble People)'에 대해 설명해 주세요.
+           - 구체적으로 어떤 띠, 혹은 어떤 성향의 사람을 가까이하면 좋은지 조언하세요.
+        
+        4. **2025년 vs 2026년 운세 흐름 (상세 비교):** - 먼저 **2025년(을사년)**의 핵심 키워드와 전반적인 운세를 확실하게 분석하세요.
+           - 이를 바탕으로 **2026년(병오년)**에는 운의 흐름이 어떻게 변화하는지 비교하여 설명하세요. (예: 25년에 씨를 뿌리고 26년에 거두는 형국인지, 아니면 25년의 어려움이 26년에 해소되는지 등)
+           - 재물, 직업, 연애 측면에서 구체적인 변화를 서술하세요.
+        
+        5. **맞춤 조언:** 사용자의 고민에 대해 따뜻하고 현실적인 조언을 해주세요.
         
         [말투 가이드]
         - "~입니다", "~합니다" 체를 기본으로 하되, 신비롭고 따뜻한 멘토의 느낌을 주세요.
