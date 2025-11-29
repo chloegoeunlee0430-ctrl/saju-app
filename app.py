@@ -72,7 +72,8 @@ if submitted:
             # 1. 날짜 변환 로직
             if "음력" in calendar_type:
                 # 음력 -> 양력 변환 (사주 계산용)
-                calendar.setLunar(birth_date.year, birth_date.month, birth_date.day, is_yun)
+                # 함수명 수정: setLunar -> setLunarDate
+                calendar.setLunarDate(birth_date.year, birth_date.month, birth_date.day, is_yun)
                 
                 solar_date_str = datetime(calendar.solarYear, calendar.solarMonth, calendar.solarDay).strftime('%Y년 %m월 %d일')
                 lunar_date_str = f"{birth_date.year}년 {birth_date.month}월 {birth_date.day}일" + ("(윤달)" if is_yun else "")
@@ -83,7 +84,8 @@ if submitted:
 
             else:
                 # 양력 -> 음력 변환 (사용자 참고용)
-                calendar.setSolar(birth_date.year, birth_date.month, birth_date.day)
+                # 함수명 수정: setSolar -> setSolarDate
+                calendar.setSolarDate(birth_date.year, birth_date.month, birth_date.day)
                 
                 solar_date_str = birth_date.strftime('%Y년 %m월 %d일')
                 lunar_date_str = calendar.LunarIsoFormat() # YYYY-MM-DD 형태
