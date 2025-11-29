@@ -20,28 +20,46 @@ model = genai.GenerativeModel(TARGET_MODEL)
 # --- 페이지 설정 ---
 st.set_page_config(page_title="정통 AI 사주", page_icon="🌓")
 
+# 👇 [디자인 업그레이드] 버튼을 고급스럽게 꾸미는 CSS 스타일
+st.markdown("""
+<style>
+    div.stButton > button:first-child {
+        background: linear-gradient(135deg, #6a11cb 0%, #2575fc 100%);
+        color: white;
+        font-size: 18px;
+        font-weight: bold;
+        border: none;
+        border-radius: 12px;
+        padding: 16px 20px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        transition: all 0.3s ease;
+    }
+    div.stButton > button:first-child:hover {
+        background: linear-gradient(135deg, #2575fc 0%, #6a11cb 100%);
+        box-shadow: 0 8px 15px rgba(0,0,0,0.2);
+        transform: translateY(-2px);
+    }
+</style>
+""", unsafe_allow_html=True)
+
 st.title("🌓 AI 사주 상담소")
 st.markdown("---")
-# 👇 요청하신 감성적인 문구 적용
-st.write("마음이 복잡하거나 다가올 미래가 막막하게 느껴지시나요? 잠시 마음의 짐을 내려놓고 저에게 털어 놓아 보세요 ☺️ 생년월일 정보만 입력하여도 사주 확인이 가능합니다.")
+st.write("마음이 복잡하거나 다가올 미래가 막막하게 느껴지시나요? 잠시 마음의 짐을 내려놓고 저에게 털어놓아 보세요 ☺️\n\n생년월일 정보만 입력하여도 사주 확인이 가능합니다.")
 
 # --- 입력 폼 ---
 with st.form("saju_form"):
     col1, col2 = st.columns(2)
     with col1:
-        # 👇 이름을 선택사항으로 변경
-        name = st.text_input("이름 (선택)", placeholder="입력하지 않아도 됩니다")
+        name = st.text_input("이름 (선택사항)", placeholder="입력하지 않아도 됩니다")
         gender = st.selectbox("성별", ["여성", "남성"])
         
-        # 날짜 기준 선택
         calendar_type = st.radio(
             "알고 있는 날짜는?", 
             ("양력 (Solar)", "음력 (Lunar)"),
             horizontal=True,
-            help="보통 주민등록상 생일은 양력입니다."
+            help="보통 주민등록 상의 생일은 양력입니다."
         )
         
-        # 윤달 체크 (음력 선택 시에만 보임)
         is_yun = False
         if "음력" in calendar_type:
             is_yun = st.checkbox("윤달입니까? (모르면 해제)", value=False)
@@ -54,7 +72,6 @@ with st.form("saju_form"):
             help="연도를 클릭하여 빠르게 이동할 수 있습니다."
         )
         
-        # 태어난 시간 입력 (모를 경우 체크)
         birth_time = st.time_input(
             "태어난 시간", 
             value=datetime.strptime("12:00", "%H:%M"),
@@ -63,73 +80,64 @@ with st.form("saju_form"):
         )
         unknown_time = st.checkbox("태어난 시간을 모릅니다", key="unknown_time_check")
 
-    # 👇 요청하신 고민 입력 예시 문구 적용
-    concern = st.text_area("현재 고민을 최대한 구체적으로 적어주세요. (예시: 내년에 일이 어떻게 풀릴 지 궁금해요. 재물운은 어떨까요.)", height=80)
-    submitted = st.form_submit_button("🔮 내 운명 확인하기", use_container_width=True)
+    concern = st.text_area("현재 고민을 최대한 구체적으로 적어주세요.\n(예시: 내년에 일이 어떻게 풀릴 지 궁금해요. 재물운은 어떨까요.)", height=80)
+    submitted = st.form_submit_button("🌌 천기누설! 내 운명 확인하기", use_container_width=True)
 
 # --- 로직 처리 ---
 if submitted:
-    # 이름이 없으면 기본 호칭 사용
     display_name = name if name else "방문자"
 
     try:
         calendar = KoreanLunarCalendar()
         
-        # 1. 날짜 변환 로직
+        # 1. 날짜 변환 및 '정확한 간지(Gapja)' 계산
         if "음력" in calendar_type:
-            # 음력 -> 양력 변환 (사주 계산용)
             calendar.setLunarDate(birth_date.year, birth_date.month, birth_date.day, is_yun)
-            
-            solar_date_str = datetime(calendar.solarYear, calendar.solarMonth, calendar.solarDay).strftime('%Y년 %m월 %d일')
             lunar_date_str = f"{birth_date.year}년 {birth_date.month}월 {birth_date.day}일" + ("(윤달)" if is_yun else "")
-            
-            # 안내 메시지
-            st.info(f"💡 입력하신 **음력 {lunar_date_str}**을 **양력 {solar_date_str}**로 변환하여 분석합니다.")
-            final_solar_date = solar_date_str 
-
         else:
-            # 양력 -> 음력 변환 (사용자 참고용)
             calendar.setSolarDate(birth_date.year, birth_date.month, birth_date.day)
-            
-            solar_date_str = birth_date.strftime('%Y년 %m월 %d일')
-            lunar_date_str = calendar.LunarIsoFormat() 
-            
-            st.success(f"💡 **양력 {solar_date_str}**에 태어나셨군요! (음력으로는 **{lunar_date_str}** 입니다)")
-            final_solar_date = solar_date_str
+            lunar_date_str = calendar.LunarIsoFormat()
 
-        # 2. 시간 문자열 처리
+        # 양력 날짜 문자열
+        solar_date_str = datetime(calendar.solarYear, calendar.solarMonth, calendar.solarDay).strftime('%Y년 %m월 %d일')
+        
+        # 👇 [핵심 수정] 라이브러리가 직접 계산한 정확한 사주(간지) 가져오기
+        # 예: "갑자년 을축월 병인일" 형태로 반환됨 (AI가 계산할 필요 없음!)
+        saju_ganji = calendar.getGapJaString() 
+
+        # 사용자에게 안내
+        st.info(f"💡 분석 기준: 양력 **{solar_date_str}** / 사주: **{saju_ganji}**")
+        
+        # 2. 시간 처리
         if unknown_time:
-            time_str = "모름 (시간을 제외한 삼주(Year, Month, Day)로만 분석해주세요)"
+            time_str = "모름 (시간을 제외한 삼주로만 분석)"
         else:
             time_str = birth_time.strftime('%H시 %M분')
 
-        # 3. 프롬프트 생성 (만세력 분석 강화)
+        # 3. 프롬프트 생성 (AI에게 정답 사주를 알려줌)
         prompt = f"""
         당신은 30년 경력의 정통 명리학자입니다.
+        제가 이미 정확한 만세력 정보를 계산해서 제공하니, **당신은 별도의 날짜 계산을 하지 말고 아래 제공된 [확정된 사주] 정보를 그대로 해석**만 하세요.
         
         [사용자 정보]
         - 이름/호칭: {display_name} ({gender})
-        - 사주 기준일(양력): {final_solar_date} (절기력 기준일)
-        - 참고(음력): {lunar_date_str}
+        - 사주 기준일(양력): {solar_date_str}
+        - **[확정된 사주(년월일)]: {saju_ganji}** (이 정보가 절대적인 기준입니다. 다른 계산 하지 마세요.)
         - 태어난 시간: {time_str}
         - 고민: {concern if concern else "없음"}
 
         [지시사항]
-        1. **만세력 심층 분석:** - 사용자의 사주팔자(네 기둥: 년주, 월주, 일주, 시주)를 명확하게 제시하세요. (시간을 모를 경우 시주는 제외)
-           - 각 기둥의 천간과 지지가 의미하는 바를 풀이하고, 오행(목, 화, 토, 금, 수)의 분포와 균형에 대해 자세히 설명해 주세요.
-           - 본인을 상징하는 '일주(Day Pillar)'의 특성을 중심으로 타고난 기질과 잠재력을 깊이 있게 분석하세요.
-           - 배우자 혹은 동료는 어떤 사람과 잘 맞는 지도 간단히 분석하여 설명해주세요.
-           
-        2. **2026년 운세:** - 2025년의 운세 흐름을 간략히 참고하여, 다가오는 2026년의 재물, 직업, 연애 운을 중점적으로 구체적인 흐름으로 서술하세요.
-           
-        3. **맞춤 조언:** - 사용자의 고민에 대해 따뜻하면서도 현실적인 조언을 해주세요.
-           
-        4. **형식:** - 전문 용어(갑자, 을축 등)는 괄호 안에 한자를 병기하거나 쉽게 풀어서 설명하세요.
-           - 가독성 좋게 소제목을 사용하세요.
-           - 어조는 신비로우면서도 내담자를 위로하는 따뜻한 말투를 유지하세요.
+        1. **일주(Day Pillar) 분석:** 위 [확정된 사주]에서 '일주(태어난 날의 기둥)'를 찾아, 그 일주가 가진 타고난 기질과 특성을 깊이 있게 분석하세요. (예: 갑자일주라면 갑자일주의 특성 설명)
+        2. **오행 분석:** 사주팔자 전체의 오행(목화토금수) 구성을 살펴보고 과하거나 부족한 기운에 대해 조언하세요.
+        3. **2026년 운세:** 2025년의 흐름을 참고하여 2026년(병오년)의 재물, 직업, 연애 운을 구체적으로 예측하세요.
+        4. **맞춤 조언:** 사용자의 고민에 대해 따뜻하고 현실적인 조언을 해주세요.
+        
+        [말투 가이드]
+        - "~입니다", "~합니다" 체를 기본으로 하되, 신비롭고 따뜻한 멘토의 느낌을 주세요.
+        - 전문 용어는 쉽게 풀어서 설명하세요.
         """
 
-        with st.spinner(f"{display_name}님의 사주를 분석 중입니다..."):
+        with st.spinner(f"{display_name}님의 사주({saju_ganji})를 분석 중입니다..."):
             response = model.generate_content(prompt)
             st.markdown("---")
             st.subheader(f"📜 {display_name}님의 사주 풀이")
