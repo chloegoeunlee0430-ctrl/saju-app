@@ -29,19 +29,19 @@ model = genai.GenerativeModel(TARGET_MODEL)
 # --- 페이지 설정 ---
 st.set_page_config(page_title="AI 사주 상담소", page_icon="🔮")
 
-st.title("🔮 고성능 AI 사주 상담소")
-st.write("친구의 생년월일만 입력하면, AI가 운명을 분석해 줍니다.")
+st.title("🔮 AI 사주 상담소")
+st.write("생년월일만 입력하면, AI가 운명을 분석해 줍니다.")
 
 # --- 메인 입력 폼 ---
 col1, col2 = st.columns(2)
 with col1:
-    name = st.text_input("이름 (또는 별명)", "친구")
+    name = st.text_input("이름(선택)", "이고은")
     gender = st.selectbox("성별", ["여성", "남성"])
 with col2:
     # 👇 [수정 1] 기본값을 1990년 1월 1일로 변경
     birth_date = st.date_input(
         "생년월일", 
-        value=datetime(1990, 1, 1), 
+        value=datetime(1987, 4, 30), 
         min_value=datetime(1900, 1, 1)
     )
     # 👇 [수정 2] 시간을 30분 단위(1800초)로 선택하게 변경
@@ -51,14 +51,14 @@ with col2:
         step=1800 
     )
 
-concern = st.text_area("요즘 가장 큰 고민은? (구체적일수록 정확함)", height=100)
+concern = st.text_area("요즘 가장 큰 고민은 무엇인가요? (구체적일 수록 정확하답니다.)", height=100)
 
 # --- 사주 분석 버튼 ---
 if st.button("✨ 사주 결과 보기"):
     try:
         # 프롬프트 구성
         prompt = f"""
-        당신은 30년 경력의 정통 명리학자입니다. 아래 정보를 바탕으로 사주를 봐주세요.
+        당신은 30년 경력의 정통 명리학자입니다. 아래 정보를 바탕으로 사주를 봐주세요. 말투는 깔끔하고 공손하고 겸손한 말투로 얘기해주세요.
         
         [사용자 정보]
         - 이름: {name} ({gender})
