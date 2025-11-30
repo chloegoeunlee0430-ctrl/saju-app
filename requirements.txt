@@ -1,3 +1,5 @@
 streamlit
 google-generativeai
 korean_lunar_calendar
+gspread
+oauth2client
