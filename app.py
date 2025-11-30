@@ -2,34 +2,71 @@ import streamlit as st
 import google.generativeai as genai
 from datetime import datetime
 from korean_lunar_calendar import KoreanLunarCalendar
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
 
 # ==========================================
-# 👇 [보안 처리] Streamlit Secrets에서 API 키를 가져옵니다.
-MY_API_KEY = st.secrets.get("GEMINI_API_KEY", "") 
-TARGET_MODEL = "gemini-flash-latest"
+# 👇 [설정] API 키 및 구글 시트 설정
 # ==========================================
-
-# --- API 설정 ---
-if not MY_API_KEY:
-    st.error("API 키가 설정되지 않았습니다. Streamlit Secrets에 키를 추가해주세요!")
+try:
+    # 1. Gemini API 키 가져오기
+    MY_API_KEY = st.secrets["GEMINI_API_KEY"]
+    
+    # 2. 구글 시트 연동 키 가져오기
+    # (Streamlit Secrets에 [gcp_service_account]가 있어야 합니다)
+    GCP_SECRETS = st.secrets["gcp_service_account"]
+    
+except Exception:
+    st.error("⚠️ Secrets 설정이 완벽하지 않습니다. (API Key 또는 GCP 서비스 계정 키 확인 필요)")
     st.stop()
 
+TARGET_MODEL = "gemini-flash-latest"
+SHEET_NAME = "saju_database" # ⚠️ 구글 시트 제목과 똑같아야 합니다!
+# ==========================================
+
+
+# --- 구글 시트 연결 함수 (캐싱 적용) ---
+@st.cache_resource
+def get_google_sheet():
+    scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
+    creds = ServiceAccountCredentials.from_json_keyfile_dict(dict(GCP_SECRETS), scope)
+    client = gspread.authorize(creds)
+    return client.open(SHEET_NAME).sheet1
+
+# --- 시트 저장 함수 ---
+def save_to_sheet(name, gender, birth, time, concern, result):
+    try:
+        sheet = get_google_sheet()
+        # 저장할 데이터: [시간, 이름, 성별, 생년월일, 시간, 고민, 결과요약]
+        sheet.append_row([
+            str(datetime.now()), 
+            name, 
+            gender, 
+            birth, 
+            time, 
+            concern, 
+            result[:1000] # 엑셀 셀 용량 고려해서 1000자까지만 저장
+        ])
+        return True
+    except Exception as e:
+        print(f"저장 실패: {e}")
+        return False
+
+
+# --- 기본 설정 ---
 genai.configure(api_key=MY_API_KEY)
 model = genai.GenerativeModel(TARGET_MODEL)
 
-# --- 페이지 설정 ---
 st.set_page_config(page_title="정통 AI 사주", page_icon="🌓")
 
 st.title("🌓 AI 사주 상담소")
 st.markdown("---")
-# 요청하신 문구 적용 (띄어쓰기 및 이모지 포함)
 st.write("마음이 복잡하거나 다가올 미래가 막막하게 느껴지시나요? 잠시 마음의 짐을 내려놓고 저에게 털어놓아 보세요 ☺️\n\n생년월일 정보만 입력하여도 사주 확인이 가능합니다.")
 
 # --- 입력 폼 ---
 with st.form("saju_form"):
     col1, col2 = st.columns(2)
     with col1:
-        # 이름 선택사항 처리
         name = st.text_input("이름 (선택사항)", placeholder="입력하지 않아도 됩니다")
         gender = st.selectbox("성별", ["여성", "남성"])
         
@@ -62,7 +99,7 @@ with st.form("saju_form"):
 
     concern = st.text_area("현재 고민을 최대한 구체적으로 적어주세요.\n(예시: 내년에 일이 어떻게 풀릴 지 궁금해요. 재물운은 어떨까요.)", height=80)
     
-    # 👇 [수정 완료] 버튼 디자인 및 문구 원복 (기본 스타일)
+    # 버튼 (기본 스타일)
     submitted = st.form_submit_button("🔮 내 운명 확인하기", use_container_width=True)
 
 # --- 로직 처리 ---
@@ -72,7 +109,7 @@ if submitted:
     try:
         calendar = KoreanLunarCalendar()
         
-        # 1. 날짜 변환 및 '정확한 간지(Gapja)' 계산
+        # 1. 날짜 변환 및 간지 계산
         if "음력" in calendar_type:
             calendar.setLunarDate(birth_date.year, birth_date.month, birth_date.day, is_yun)
             lunar_date_str = f"{birth_date.year}년 {birth_date.month}월 {birth_date.day}일" + ("(윤달)" if is_yun else "")
@@ -80,13 +117,9 @@ if submitted:
             calendar.setSolarDate(birth_date.year, birth_date.month, birth_date.day)
             lunar_date_str = calendar.LunarIsoFormat()
 
-        # 양력 날짜 문자열
         solar_date_str = datetime(calendar.solarYear, calendar.solarMonth, calendar.solarDay).strftime('%Y년 %m월 %d일')
-        
-        # 라이브러리가 직접 계산한 정확한 사주(간지) 가져오기
         saju_ganji = calendar.getGapJaString() 
 
-        # 사용자에게 안내
         st.info(f"💡 분석 기준: 양력 **{solar_date_str}** / 사주: **{saju_ganji}**")
         
         # 2. 시간 처리
@@ -95,7 +128,7 @@ if submitted:
         else:
             time_str = birth_time.strftime('%H시 %M분')
 
-        # 3. 프롬프트 생성 (요청하신 내용 완벽 반영)
+        # 3. 프롬프트 생성
         prompt = f"""
         당신은 30년 경력의 정통 명리학자입니다.
         제가 이미 정확한 만세력 정보를 계산해서 제공하니, **당신은 별도의 날짜 계산을 하지 말고 아래 제공된 [확정된 사주] 정보를 그대로 해석**만 하세요.
@@ -117,7 +150,6 @@ if submitted:
         
         4. **2025년 vs 2026년 운세 흐름 (중점 사항):** - 먼저 **2025년(을사년)**의 운세가 어떠했는지(또는 어떠할지) 핵심 키워드로 요약하세요.
            - 이를 바탕으로 **2026년(병오년)**에는 운의 흐름이 어떻게 변화하는지 비교하여 상세히 설명하세요. 
-           - 예: "25년에는 준비하는 시기였다면, 26년에는 결실을 맺습니다" 또는 "25년의 혼란이 26년에는 안정됩니다" 등.
            - 재물, 직업, 연애 측면에서 구체적인 변화를 서술하세요.
         
         5. **맞춤 조언:** 사용자의 고민에 대해 따뜻하고 현실적인 조언을 해주세요.
@@ -130,12 +162,18 @@ if submitted:
         with st.spinner(f"{display_name}님의 사주({saju_ganji})를 분석 중입니다..."):
             response = model.generate_content(prompt)
             
+            # 👇 [핵심] 구글 시트에 자동 저장
+            if 'gcp_service_account' in st.secrets:
+                save_success = save_to_sheet(display_name, gender, solar_date_str, time_str, concern, response.text)
+                if save_success:
+                    st.toast("✅ 상담 내용이 데이터베이스에 안전하게 기록되었습니다.", icon="💾")
+            
+            # 결과 출력
             st.markdown("---")
             st.subheader(f"📜 {display_name}님의 사주 풀이")
             st.markdown(response.text)
             
-            # (선택사항) 결과를 텍스트 파일로 저장하는 기능은 살려두었습니다.
-            # 필요 없으시면 아래 5줄을 지우셔도 됩니다.
+            # 텍스트 파일 다운로드 버튼
             st.download_button(
                 label="📄 결과 파일로 저장하기",
                 data=response.text,
